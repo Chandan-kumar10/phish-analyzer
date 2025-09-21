@@ -1,0 +1,4 @@
+recipient,subject,body,links,clicked,reported
+alice@example.com,Account Suspended,Your PayPal account has been suspended. Login here: http://paypal-login.com,http://paypal-login.com,False,False
+bob@example.com,Urgent: Verify Now,Please verify your bank details: http://bank-secure.example.com,http://bank-secure.example.com,True,False
+charlie@example.com,Team Meeting,Reminder: team meeting tomorrow.,,False,True

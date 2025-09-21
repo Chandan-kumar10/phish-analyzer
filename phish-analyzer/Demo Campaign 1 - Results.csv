@@ -1,0 +1,2 @@
+id,status,ip,latitude,longitude,send_date,reported,modified_date,email,first_name,last_name,position
+O6VqtYC,Email Sent,,0,0,2025-09-13T17:14:10.693833Z,false,2025-09-13T17:14:10.693833Z,nbox+123456@sandbox.mailtrap.io,chandan,kumar,Web Deleloper
