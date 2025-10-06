@@ -1,5 +1,2 @@
-streamlit as st
-pandas as pd
-import re
-import urllib.parse
-import random
+pandas>=1.5
+streamlit>=1.30
