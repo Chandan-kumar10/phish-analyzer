@@ -1,25 +1,123 @@
-# Phish-Analyzer
+#  Phish Analyzer — Heuristic-Based Phishing Email Detection
 
-Phish-Analyzer is a defensive tool that ingests phishing campaign logs (e.g., exported from GoPhish),
-normalizes them, computes explainable per-user risk scores, and provides a Streamlit dashboard for visualization and export.
+[![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-App-green)](https://streamlit.io/)
+
+---
+
+## Table of Contents
+- [Project Overview](#project-overview)
+- [Features](#features)
+- [Demo / Screenshots](#demo--screenshots)
+- [Installation](#installation)
+- [Usage](#usage)
+- [How It Works](#how-it-works)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
+
+---
+
+## Project Overview
+Phish Analyzer is a **heuristic-based phishing email simulator and analyzer** built using **Python and Streamlit**.  
+
+It is designed to help:
+- **Non-technical users** understand phishing risks.
+- **Security enthusiasts** analyze email campaigns.
+- **Students & professionals** simulate phishing campaigns for learning purposes.
+
+With this tool, you can **upload email CSV logs** or **simulate campaigns**, analyze risk levels, and get **actionable advice** for safe email behavior.
+
+---
 
 ## Features
-- Normalize GoPhish CSV (prepare_csv.py)
-- Rule-based risk scoring (keywords, suspicious links, clicked/reported behaviour)
-- Streamlit UI: upload CSV, view table, charts, top risky users, export report
-- Simulator for demo mode (generate fake logs)
+- **CSV-based analysis:** Supports GoPhish CSV exports or any email dataset.
+- **Simulate phishing campaigns:** Randomly generate emails with clickable links and test user behavior.
+- **Heuristic risk scoring:** Detect phishing emails based on keywords, link patterns, domain reputation, and click/report status.
+- **Risk labels:** Low / Medium / High scoring with color-coded dashboard.
+- **Domain summary:** Analyze suspicious domains used in emails.
+- **Top risky recipients:** Easily identify high-risk users in campaigns.
+- **User advice:** Suggest safe email practices.
+- **Theme toggle:** Switch between light and dark mode for user comfort.
+- **Export results:** Download analyzed CSV for reporting.
 
-## Quickstart (local)
-```bash
-# create & activate venv (Windows PowerShell)
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+---
 
-# install deps
-pip install -r requirements.txt
+## Demo / Screenshots
+### Example Dashboard
+![Dashboard Screenshot](https://github.com/Chandan-kumar10/phish-analyzer/tree/main/phish-analyzer/Screenshorts))
 
-# prepare CSV (if needed)
-python prepare_csv.py "path/to/gophish_results.csv" prepared_for_analyzer.csv
 
-# run app
+- **Risk Distribution Pie Chart**: Visual overview of email risks.
+- **Top Risky Recipients**: Sorted table for quick analysis.
+- **Domain Summary**: Identify suspicious domains in email links.
+
+---
+
+## Installation
+```
+pip install streamlit pandas matplotlib
+```
+
+## Usage
+Run the app
+```
 python -m streamlit run app.py
+```
+
+Open the URL shown in terminal (usually(http://localhost:8501/)).
+
+Use the sidebar to:
+
+Simulate phishing emails or upload your own CSV.
+
+Adjust number of emails, phishing fraction, click/report probabilities.
+
+Edit keywords and suspicious domains.
+
+Switch between light/dark mode.
+
+View the dashboard:
+
+Total emails, high-risk emails, reported emails.
+
+Risk distribution pie chart.
+
+Top risky recipients.
+
+Domain summary.
+
+Download the analyzed CSV if needed.
+
+## How It Works
+
+Keywords: Checks email subject/body for risky words (e.g., verify, urgent, account suspended).
+
+Link Analysis: Flags suspicious domains, URL shorteners, and IP-based URLs.
+
+User Behavior: Clicking a link increases risk, reporting decreases risk.
+
+Risk Scoring: Combines all heuristics to generate a score (0–100) and assign a label (Low / Medium / High).
+
+## Contributing
+
+Contributions are welcome! You can:
+
+Improve the heuristic scoring system
+
+Add more realistic phishing simulation templates
+
+Improve dashboard UX
+
+Optimize performance
+
+## License
+
+This project is MIT licensed. See LICENSE
+ for details.
+
+ ## Contact
+
+GitHub: https://github.com/Chandan-kumar10
+
+Email: ck598364@gmail.com
