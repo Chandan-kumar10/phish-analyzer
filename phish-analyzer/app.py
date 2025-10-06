@@ -1,90 +1,100 @@
-# app.py
 import streamlit as st
 import pandas as pd
-import re, urllib.parse, random, string
-from io import StringIO
-import matplotlib.pyplot as plt
+import re
+import urllib.parse
+import random
 
-st.set_page_config(page_title="Phish Analyzer (Self)", layout="wide")
-st.title("Phish Analyzer — Simulator + CSV Analyzer (Defensive)")
+st.set_page_config(page_title="Simple Phish Analyzer", layout="wide")
+st.title("Simple Phish Analyzer — Clean & Helpful")
 
-# ---------------- Sample CSV template ----------------
+# -------------------------
+# Small UI helpers
+# -------------------------
+def info_box(txt):
+    st.markdown(f"<div style='background:#eef6ff;padding:10px;border-radius:8px;margin-bottom:8px'>{txt}</div>", unsafe_allow_html=True)
+
+def danger_box(txt):
+    st.markdown(f"<div style='background:#ffecec;padding:10px;border-radius:8px;margin-bottom:8px'>{txt}</div>", unsafe_allow_html=True)
+
+# -------------------------
+# Theme toggle (simple)
+# -------------------------
+theme = st.sidebar.selectbox("Theme", ["Dark", "Light"], index=1)
+if theme == "Dark":
+    st.markdown("""
+        <style>
+        .stApp { background-color: #0b1220; color: #e6eef8; }
+        .card { background:#0f1724; padding:12px; border-radius:8px; }
+        </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+        <style>
+        .stApp { background-color: #f7fbff; color: #041122; }
+        .card { background:#ffffff; padding:12px; border-radius:8px; }
+        </style>
+    """, unsafe_allow_html=True)
+
+# -------------------------
+# Simple examples / demo
+# -------------------------
 SAMPLE_CSV = """recipient,subject,body,links,clicked,reported
 alice@example.com,Account Suspended,Your PayPal account has been suspended. Login here: http://paypal-login.com,http://paypal-login.com,False,False
-bob@example.com,Urgent: Verify Now,Please verify your bank details: http://bank-secure.example.com,http://bank-secure.example.com,True,False
-charlie@example.com,Team Meeting,Reminder: team meeting tomorrow.,,False,True
+bob@example.com,Team Meeting,Reminder: meeting tomorrow.,,False,True
 """
 
-# ---------------- Small simulator (optional) ----------------
-def random_email(name=None):
-    names = ["alice","bob","charlie","dave","eve","frank","grace","harry","irene","jack","kumar","prince"]
-    nm = name or random.choice(names)
-    doms = ["example.com","company.com","student.edu","mail.org"]
-    return f"{nm}{random.randint(1,99)}@{random.choice(doms)}"
+st.sidebar.markdown("### Actions")
+st.sidebar.download_button("Download sample CSV", data=SAMPLE_CSV, file_name="sample_phish_template.csv", mime="text/csv")
 
-suspicious_domains = [
-    "paypal-login.com","bank-secure.example.com","secure-paypal.co","invoices-paypal.net",
-    "free-gift-login.xyz"
-]
-benign_domains = ["company.com","example.com","student.edu","trusted.org"]
+# -------------------------
+# Upload or simulate
+# -------------------------
+st.markdown("## 1) Upload CSV or simulate demo data")
+col1, col2 = st.columns([2,1])
 
-def gen_link(suspicious=True):
-    if suspicious:
-        return "http://" + random.choice(suspicious_domains) + "/" + ''.join(random.choices(string.ascii_lowercase, k=6))
-    else:
-        return "https://"+random.choice(benign_domains)+"/"+''.join(random.choices(string.ascii_lowercase,k=6))
+with col1:
+    uploaded = st.file_uploader("Upload CSV (columns: recipient,subject,body,links,clicked,reported)", type=["csv"])
+with col2:
+    if st.button("Generate demo dataset"):
+        # create a reliable demo mix
+        data = [
+            ["alice@example.com","Account Suspended","Your PayPal account has been suspended. Login here: http://paypal-login.com","http://paypal-login.com","False","False"],
+            ["bob@company.com","Team Meeting","Reminder: team meeting tomorrow.","","False","True"],
+            ["carol@bank.com","Verify now","Please verify bank details: http://bank-secure.example.com","http://bank-secure.example.com","True","False"],
+            ["dave@mail.org","Hello","Monthly newsletter","https://company.com/news","False","False"],
+            ["eve@user.com","Password Reset","Reset password: http://192.168.1.100/login","http://192.168.1.100/login","True","False"],
+        ]
+        df_demo = pd.DataFrame(data, columns=["recipient","subject","body","links","clicked","reported"])
+        st.session_state['df'] = df_demo
+        st.success("Demo dataset generated — scroll down for analysis.")
 
-phish_subjects = [
-    "Account Suspended - Verify Now",
-    "Urgent: Verify Your Bank Details",
-    "Security Alert - New Sign-in",
-    "Invoice Overdue - Pay Immediately",
-    "Team Meeting Reminder",
-    "Password Reset Required"
-]
-phish_bodies = [
-    "Dear user, your account has been suspended. Login here: {link}",
-    "Please verify your bank details to avoid suspension: {link}",
-    "We detected a new sign-in. If this wasn't you click: {link}",
-    "You have an overdue invoice. Pay now: {link}",
-    "Reminder: team meeting tomorrow at 11 AM.",
-    "Reset your password immediately by visiting: {link}" 
-]
+# read uploaded CSV if provided
+if uploaded:
+    try:
+        df = pd.read_csv(uploaded, low_memory=False)
+        st.session_state['df'] = df
+        st.success("Uploaded - ready for analysis.")
+    except Exception as e:
+        st.error(f"Could not read CSV: {e}")
 
-def simulate_campaign(num_recipients=20, phishing_fraction=0.6, click_rate=0.25, report_rate=0.05):
-    rows = []
-    names = ["alice","bob","charlie","dave","eve","frank","grace","harry","irene","jack","kumar","prince","ritik","aman","rahul"]
-    for i in range(num_recipients):
-        r = random_email(random.choice(names))
-        is_phish = random.random() < phishing_fraction
-        if is_phish:
-            subj = random.choice(phish_subjects)
-            body_template = random.choice(phish_bodies)
-            link = gen_link(suspicious=random.random() < 0.9)
-            body = body_template.format(link=link)
-            links_field = link
-        else:
-            subj = random.choice(["Team Meeting","Hello from HR","Monthly Newsletter","Event Reminder"])
-            body = "This is a normal internal communication."
-            links_field = "" if random.random()<0.8 else gen_link(suspicious=False)
-        clicked = random.random() < (click_rate if is_phish else 0.01)
-        reported = random.random() < (report_rate if is_phish else 0.005)
-        rows.append({
-            "recipient": r,
-            "subject": subj,
-            "body": body,
-            "links": links_field,
-            "clicked": "True" if clicked else "False",
-            "reported": "True" if reported else "False"
-        })
-    df = pd.DataFrame(rows)
-    return df
+if 'df' not in st.session_state:
+    st.info("No data yet. Upload a CSV or click 'Generate demo dataset'.")
+    st.stop()
 
-# ---- Heuristics & helpers ----
-keywords = ['suspend','suspended','verify','urgent','account suspended','bank details','password','invoice overdue','security alert','click here','login','reset']
+df = st.session_state['df'].copy()
+# ensure required columns exist
+for c in ['recipient','subject','body','links','clicked','reported']:
+    if c not in df.columns:
+        df[c] = ""
+
+# -------------------------
+# Heuristics and scoring
+# -------------------------
+SHORTENERS = ['bit.ly','tinyurl.com','t.co','goo.gl','ow.ly']
+URGENCY_KEYWORDS = ['verify','urgent','suspend','suspended','immediately','action required','verify now','login','password','reset','bank','invoice','overdue']
 
 def extract_links(links_field):
-    if pd.isna(links_field) or str(links_field).strip()=="":
+    if pd.isna(links_field) or str(links_field).strip() == "":
         return []
     parts = re.split(r'[,\s]+', str(links_field).strip())
     return [p for p in parts if p.startswith('http')]
@@ -95,147 +105,180 @@ def domain_of(url):
     except:
         return ""
 
-def score_row(row):
+def is_ip_domain(dom):
+    return bool(re.match(r'^\d+\.\d+\.\d+\.\d+$', dom)) or bool(re.match(r'^\d+\.\d+\.\d+\.\d+:\d+', dom))
+
+def score_item(row):
     score = 0
-    body = (str(row.get('body','')) + " " + str(row.get('subject',''))).lower()
-    for kw in keywords:
-        if kw in body:
-            score += 15
+    reasons = []
+    text = (str(row.get('subject','')) + " " + str(row.get('body',''))).lower()
+
+    # urgency words
+    for kw in URGENCY_KEYWORDS:
+        if kw in text:
+            score += 12
+            if kw not in reasons:
+                reasons.append(f"Contains urgent word: '{kw}'")
+
+    # links analysis
     links = extract_links(row.get('links',''))
     if links:
-        score += 20
+        score += 10  # presence of link raises risk
         for link in links:
             dom = domain_of(link)
-            if '-' in dom or 'login' in dom or 'secure' in dom or dom.count('.')>2:
-                score += 10
-            if 'paypal' in body and 'paypal.com' not in dom:
-                score += 20
-    if str(row.get('clicked','')).strip().lower() in ['true','1','yes']:
-        score += 25
-    if str(row.get('reported','')).strip().lower() in ['true','1','yes']:
-        score -= 30
+            if dom == "":
+                continue
+            # missing https
+            if not link.lower().startswith('https://'):
+                score += 8
+                reasons.append(f"Link not using HTTPS: {link}")
+            # IP based
+            if is_ip_domain(dom):
+                score += 25
+                reasons.append(f"IP-based link: {dom}")
+            # shortener
+            if any(s in dom for s in SHORTENERS):
+                score += 18
+                reasons.append(f"URL shortener used: {dom}")
+            # suspicious chars or many subdomains (lookalike)
+            if '-' in dom or dom.count('.') > 2:
+                score += 8
+                reasons.append(f"Suspicious domain pattern: {dom}")
+            # brand mismatch: check for brand words in text but not in domain
+            for brand in ['paypal','google','apple','amazon','bank']:
+                if brand in text and brand not in dom:
+                    score += 18
+                    reasons.append(f"Brand mention but link domain mismatch: {brand} vs {dom}")
+    else:
+        # no links reduces some risk for credential phishing but not content-based
+        pass
+
+    # clicked / reported behavior
+    clicked = str(row.get('clicked','')).strip().lower() in ['true','1','yes']
+    reported = str(row.get('reported','')).strip().lower() in ['true','1','yes']
+    if clicked:
+        score += 22
+        reasons.append("User clicked the link")
+    if reported:
+        score -= 28
+        reasons.append("User reported the email (reduces risk)")
+
+    # clamp and label
     score = max(0, min(100, score))
-    return score
+    label = 'Low' if score < 30 else ('Medium' if score < 60 else 'High')
+    return score, label, list(dict.fromkeys(reasons))  # preserve order, dedupe
 
-def risk_label(s):
-    if s >= 60: return 'High'
-    if s >= 30: return 'Medium'
-    return 'Low'
+# apply scoring
+scored = df.apply(lambda r: score_item(r), axis=1)
+df['risk_score'] = [s[0] for s in scored]
+df['risk_label'] = [s[1] for s in scored]
+df['reasons'] = [s[2] for s in scored]
 
-# ---------------- UI: template, simulator, upload ----------------
-st.sidebar.header("Actions & Settings")
-num = st.sidebar.number_input("Simulate: recipients", value=20, min_value=5, max_value=500, step=5)
-phish_frac = st.sidebar.slider("Simulate: phish fraction", 0.0, 1.0, 0.6)
-click_rate = st.sidebar.slider("Simulate: click probability (for phish)", 0.0, 1.0, 0.25)
-report_rate = st.sidebar.slider("Simulate: report probability (for phish)", 0.0, 1.0, 0.05)
-
-st.markdown("### 1) Download sample CSV (template)")
-st.download_button("Download sample CSV template", data=SAMPLE_CSV, file_name="sample_phish_template.csv", mime="text/csv")
-
-st.markdown("### 2) Either simulate a campaign (generate logs) or upload GoPhish CSV")
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Simulate campaign (generate logs)"):
-        st.session_state['sim_df'] = simulate_campaign(num_recipients=int(num), phishing_fraction=float(phish_frac), click_rate=float(click_rate), report_rate=float(report_rate))
-        st.success("Simulation created — scroll down to see analysis.")
-with col2:
-    uploaded = st.file_uploader("Or upload CSV (exported from GoPhish)", type=['csv'])
-    if uploaded is not None:
-        # read uploaded csv
-        try:
-            df_up = pd.read_csv(uploaded)
-        except Exception as e:
-            st.error(f"Could not read CSV: {e}")
-            st.stop()
-        # mapping if columns missing
-        required_cols = ['recipient','subject','body','links','clicked','reported']
-        uploaded_cols = list(df_up.columns)
-        missing = [c for c in required_cols if c not in uploaded_cols]
-        if not missing:
-            st.session_state['sim_df'] = df_up
-            st.success("Uploaded CSV has required columns. Proceeding.")
-        else:
-            st.warning(f"Missing columns: {missing}")
-            st.info("Map your CSV columns to required fields below.")
-            mapping = {}
-            for req in required_cols:
-                mapping[req] = st.selectbox(f"Map required '{req}' to uploaded column:", options=["-- none --"] + uploaded_cols, index=0, key=f"map_{req}")
-            unmapped = [k for k,v in mapping.items() if v == "-- none --"]
-            if unmapped:
-                st.error(f"Please map these fields to proceed: {unmapped}")
-                st.stop()
-            rename_map = {mapping[k]: k for k in mapping}
-            df_up = df_up.rename(columns=rename_map)
-            st.session_state['sim_df'] = df_up
-            st.success("Mapping applied. Proceeding with analysis.")
-
-if 'sim_df' not in st.session_state:
-    st.info("No logs yet — either simulate or upload a CSV. Use the sample template if unsure.")
-    st.stop()
-
-# ---------------- Analysis ----------------
-df = st.session_state['sim_df']
-for c in ['recipient','subject','body','links','clicked','reported']:
-    if c not in df.columns:
-        df[c] = ""
-
-df['links_list'] = df['links'].apply(extract_links)
-df['risk_score'] = df.apply(score_row, axis=1)
-df['risk_label'] = df['risk_score'].apply(risk_label)
-
-st.markdown("## Analysis results")
-st.write("Total emails:", len(df))
-st.dataframe(df[['recipient','subject','links_list','clicked','reported','risk_score','risk_label']].sort_values('risk_score', ascending=False))
-
-# metrics and charts
+# -------------------------
+# Dashboard: overview
+# -------------------------
+st.markdown("## 2) Overview")
 colA, colB, colC = st.columns(3)
-with colA:
-    st.metric("Total Emails", len(df))
-with colB:
-    st.metric("High Risk", int((df['risk_label']=='High').sum()))
-with colC:
-    st.metric("Reported", int((df['reported'].astype(str).str.lower().isin(['true','1','yes'])).sum()))
+colA.metric("Total Emails", len(df))
+colB.metric("High Risk", int((df['risk_label']=='High').sum()))
+colC.metric("Reported", int(df['reported'].astype(str).str.lower().isin(['true','1','yes']).sum()))
 
 st.markdown("### Risk Distribution")
-counts = df['risk_label'].value_counts()
-fig1, ax1 = plt.subplots(figsize=(4,4))
-ax1.pie(counts, labels=counts.index, autopct='%1.1f%%')
-ax1.set_title("Risk Distribution")
-st.pyplot(fig1)
+dist = df['risk_label'].value_counts().reindex(['High','Medium','Low']).fillna(0)
+st.bar_chart(dist)
 
-st.markdown("### Top risky recipients (explainable)")
-top = df.sort_values('risk_score', ascending=False).head(8)
-st.table(top[['recipient','risk_score','risk_label','links_list','clicked','reported']])
+# -------------------------
+# Email list (simple & clear)
+# -------------------------
+st.markdown("### 3) Emails (click a row to inspect)")
+# show compact table
+display = df[['recipient','subject','risk_score','risk_label']].sort_values('risk_score', ascending=False).reset_index(drop=True)
+# color-coded labels - simple html rendering
+rows_html = ""
+for i, r in display.iterrows():
+    color = "#3fc57a" if r['risk_label']=='Low' else ("#ffb400" if r['risk_label']=='Medium' else "#ff4d4f")
+    rows_html += f"""
+    <div style="padding:10px;border-radius:8px;margin-bottom:6px;background:rgba(255,255,255,0.03)">
+      <b>{r['recipient']}</b> — {r['subject']} <span style='float:right;background:{color};padding:4px 8px;border-radius:6px;color:#fff'>{r['risk_label']} ({int(r['risk_score'])})</span>
+    </div>
+    """
+st.markdown(rows_html, unsafe_allow_html=True)
 
-# download analyzed CSV
-csv_out = df.to_csv(index=False).encode('utf-8')
-st.download_button("Export analyzed CSV", data=csv_out, file_name="phish_analyzed.csv", mime="text/csv")
+# -------------------------
+# Inspect single recipient & give advice
+# -------------------------
+st.markdown("### 4) Inspect & Advice")
+recipients = df['recipient'].tolist()
+sel = st.selectbox("Pick recipient to inspect", options=recipients)
+row = df[df['recipient']==sel].iloc[0]
 
-# explain top row
-st.markdown("### Why top user is risky (example explanation)")
-top_row = df.sort_values('risk_score', ascending=False).head(1)
-if not top_row.empty:
-    row = top_row.iloc[0].to_dict()
-    st.write("Recipient:", row.get('recipient'))
-    st.write("Risk score:", row.get('risk_score'))
-    st.write("Rules fired:")
-    reasons = []
-    b = (str(row.get('subject','')) + " " + str(row.get('body',''))).lower()
-    for kw in keywords:
-        if kw in b:
-            reasons.append(f"Found keyword: '{kw}'")
-    for link in extract_links(row.get('links','')):
-        dom = domain_of(link)
-        if '-' in dom or 'login' in dom or 'secure' in dom:
-            reasons.append(f"Suspicious domain pattern: {dom}")
-        if 'paypal' in b and 'paypal.com' not in dom:
-            reasons.append("Brand mismatch (mentions paypal but link not paypal.com)")
-    if str(row.get('clicked','')).strip().lower() in ['true','1','yes']:
-        reasons.append("User clicked the link (increases risk)")
-    if str(row.get('reported','')).strip().lower() in ['true','1','yes']:
-        reasons.append("User reported this email (reduces risk)")
+st.markdown(f"**Subject:** {row['subject']}")
+st.markdown(f"**Body (preview):** {row['body'][:400]}{'...' if len(str(row['body']))>400 else ''}")
+links = extract_links(row['links'])
+if links:
+    st.markdown("**Links found:**")
+    for L in links:
+        st.write("-", L)
+else:
+    st.write("**Links found:** None")
+
+st.markdown(f"**Risk score:** **{int(row['risk_score'])}** — **{row['risk_label']}**")
+
+st.markdown("**Why flagged (reasons):**")
+if row['reasons']:
+    for r in row['reasons']:
+        st.write("- " + r)
+else:
+    st.write("- No automated reason flagged")
+
+# Simple actionable advice (non-technical)
+st.markdown("**Actionable advice:**")
+advice = []
+if row['risk_label'] == 'High':
+    advice.append("• Do NOT click links or enter credentials on linked pages.")
+    advice.append("• Change password on the real site (manually visit official site).")
+    advice.append("• Enable 2FA if available.")
+    advice.append("• Report this email to your IT/security team.")
+elif row['risk_label'] == 'Medium':
+    advice.append("• Be cautious. Hover over links to see actual URL before clicking.")
+    advice.append("• Verify sender's email address and spelling.")
+    advice.append("• If unsure, ask your IT team or the sender via a separate channel.")
+else:
+    advice.append("• Looks low-risk but stay alert for unexpected requests.")
+    advice.append("• Do not share passwords / OTPs via email.")
+
+for a in advice:
+    st.write(a)
+
+# -------------------------
+# Paste your email content quick-check
+# -------------------------
+st.markdown("### 5) Quick-check: Paste email content (subject + body + links)")
+st.caption("Paste only non-sensitive text (do NOT paste passwords/OTP). Example: 'Subject: ... Body: ... http://...'")
+text = st.text_area("Paste email content here", height=130)
+if st.button("Quick Analyze pasted text"):
+    # make a synthetic row and score
+    fake = {'subject': text[:120], 'body': text, 'links': text, 'clicked': False, 'reported': False}
+    s, lab, reasons = score_item(fake)
+    if s >= 60:
+        danger_box(f"🚨 HIGH RISK — score {int(s)} ({lab})")
+    elif s >= 30:
+        info_box(f"⚠️ MEDIUM RISK — score {int(s)} ({lab})")
+    else:
+        info_box(f"✅ LOW RISK — score {int(s)} ({lab})")
     if reasons:
+        st.write("Reasons detected:")
         for r in reasons:
             st.write("- " + r)
     else:
-        st.write("- No rule matched; likely Low risk.")
+        st.write("- No obvious reasons detected. Stay cautious.")
+
+# -------------------------
+# Export analyzed CSV
+# -------------------------
+st.markdown("### 6) Export analyzed CSV")
+csv_out = df.to_csv(index=False).encode('utf-8')
+st.download_button("Download analyzed CSV", data=csv_out, file_name="phish_analyzed.csv", mime="text/csv")
+
+st.markdown("---")
+st.caption("Made simple for non-technical users — scoring is heuristic-based and conservative. For production use integrate threat-intel APIs or ML models.")
